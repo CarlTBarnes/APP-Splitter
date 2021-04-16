@@ -242,7 +242,7 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
             END
         END
     END
-!X       LONG
+Fld LONG,AUTO
 SortClsMods CBSortClass1
 SortClsProc CBSortClass1
 SortClsMapZ CBSortClass1
@@ -283,7 +283,11 @@ MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or m
   ?LIST:ImportQ{PROP:LineHeight} = 1 + ?LIST:ImportQ{PROP:LineHeight} 
   SortClsMods.Init(ModuleQ, ?LIST:ModuleQ,1) 
   SortClsProc.Init(ProcedureQ, ?LIST:ProcedureQ,1)                         
-  SortClsMapZ.Init(MapSizeQ, ?LIST:MapSizeQ,3)                         
+  SortClsMapZ.Init(MapSizeQ, ?LIST:MapSizeQ,3)  
+  Fld=0 
+  LOOP ; Fld=0{PROP:NextField,Fld} ; IF ~Fld THEN BREAK. 
+     IF Fld{PROP:Type}=CREATE:List THEN Fld{PROPLIST:Grid}=COLOR:SCROLLBAR.
+  END
   COMPILE('!**WndPrv END**', _IFDef_CBWndPreview_)
     WndPrvCls.Init()
   !**WndPrv END**
