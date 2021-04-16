@@ -257,17 +257,22 @@ MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or m
     END
   CODE
   LoadTricksText()
-    AppNameOnly='Pr04'
-    TargetName ='QPr04'
+!  AppNameOnly='Pr04'
+!  TargetName ='QPr04'
+!  AppPathBS   = GETINI('Cfg','Path','D:\DecSys_Zips_Clarion11\C11Apps\EisTrsTier2\',ConfigINI)
 
-  AppPathBS   = GETINI('Cfg','Path','D:\DecSys_Zips_Clarion11\C11Apps\EisTrsTier2\',ConfigINI)
+  AppPathBS   = GETINI('Cfg','Path',,ConfigINI)
   AppNameOnly = GETINI('Cfg','APP',AppNameOnly,ConfigINI)
   TargetName  = GETINI('Cfg','Target',TargetName,ConfigINI)
-  DebugRelease  = GETINI('Cfg','Build',DebugRelease,ConfigINI)
+  DebugRelease= GETINI('Cfg','Build',DebugRelease,ConfigINI)
   
   ModViewFilename = 'Select File on the Modules tab to view source here' 
   ProcNames4File  = 'Select File on the Modules tab to view procedure names here' 
-  SYSTEM{PROP:PropVScroll}=1 ; SYSTEM{PROP:MsgModeDefault}=MSGMODE:CANCOPY
+  SYSTEM{PROP:PropVScroll}=1
+  COMPILE('**END**', _C110_)
+  SYSTEM{PROP:MsgModeDefault}=MSGMODE:CANCOPY
+    !end of COMPILE('**END**', _C110_)
+    
   OPEN(Window) 
   0{PROP:MinWidth} = 0{PROP:Width} * .50
   0{PROP:MinHeight} = 0{PROP:Height} * .60
