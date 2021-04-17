@@ -2,9 +2,9 @@
 !---------------------------------------------------------------------------------------------
 ! 04/16/2021 First release on Github
 
-
 !TODO Source subfolder or folder for those that choose to generate that way.
 !TODO my Locator Class
+!TODO Save Notes
 
   PROGRAM
   INCLUDE('KeyCodes.CLW')
@@ -103,6 +103,8 @@ ModuleQ    QUEUE,PRE(ModQ)
 LineNo          LONG                    !ModQ:LineNo
 FileName        STRING(40)              !ModQ:FileName
 FileSize        LONG                    !ModQ:FileSize
+ObjSize         LONG                    !ModQ:ObjSize
+RscSize         LONG                    !ModQ:RscSize
 FileDate        LONG                    !ModQ:FileDate
 FileTime        LONG                    !ModQ:FileTime
 ProcCnt         SHORT                   !ModQ:ProcCnt
@@ -179,12 +181,12 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
                         'ule source. Useful to see if there is module data')
                 CHECK('Double Click Views'),AT(201,19),USE(ViewModOnMouse2),TIP('Double click on mod' & |
                         'ule line to view.<13,10>Uncheck shows line in Map Clw. ')
-                STRING('Click to Sort - Typically by File Size and work on the Largest First'),AT(283,19), |
+                STRING('Click to Sort - Typically by CLW or OBJ Size and work on the Largest First'),AT(283,19), |
                         USE(?ClikSort:Pmt)
-                LIST,AT(7,33),FULL,USE(?LIST:ModuleQ),VSCROLL,FONT('Consolas',10),FROM(ModuleQ), |
-                        FORMAT('23R(2)|FM~Line~@n5@60L(2)|FM~Module Name~@s64@40R(2)|FM~Size~C(0)@n9' & |
-                        '@36R(2)|FM~Date~C(0)@d1-@28R(2)|FM~Time~C(0)@t1@24R(2)|FM~Count~C(0)@n4@20L' & |
-                        '(2)|FMP~Procedures~@s255@')
+                LIST,AT(7,33),FULL,USE(?LIST:ModuleQ),VSCROLL,FONT('Consolas',10),FROM(ModuleQ),FORMAT('23R(2)|FM~Line~C' & |
+                        '(0)@n5@60L(2)|FM~Module Name~@s64@40R(2)|FM~CLW Size~C(0)@n9@40R(2)|FM~OBJ Size~C(0)@n9@40R(2)|' & |
+                        'FM~RSC Size~C(0)@n9@36R(2)|FM~Date~C(0)@d1-@28R(2)|FM~Time~C(0)@t1@24R(2)|FM~Count~C(0)@n4@20L(' & |
+                        '2)|FMP~Procedures~@s255@')
             END
             TAB(' &Procedures '),USE(?TabProcedures)
                 STRING('MAP Size is calculated from the MAP Addresses. Zero would indicate the Smart' & |
@@ -528,9 +530,12 @@ ULine       STRING(512)
 Qt1         SHORT     
 Qt2         SHORT     
 Par1        SHORT 
+LenFN       SHORT 
 QNdx    LONG,AUTO
 DirQ    QUEUE(FILE:Queue),PRE(DirQ)
         END ! DirQ:Name  DirQ:ShortName(8.3?)  DirQ:Date  DirQ:Time  DirQ:Size  DirQ:Attrib    
+ObjQ    QUEUE(FILE:Queue),PRE(ObjQ)
+        END
 LineNo  LONG    
 ModProcQ QUEUE,PRE(MPrcQ)
 Name       PSTRING(80)
@@ -556,7 +561,17 @@ DelimProcs    PSTRING(6)
          DirQ:Name=UPPER(DirQ:Name)
          PUT(DirQ)
     END !LOOP
-
+    SORT(DirQ,DirQ:Name)
+    
+    DIRECTORY(ObjQ,AppPathBS &'obj\' & CLIP(DebugRelease) &'\*.OBJ',ff_:NORMAL)
+    DIRECTORY(ObjQ,AppPathBS &'obj\' & CLIP(DebugRelease) &'\*.RSC',ff_:NORMAL)
+    LOOP QNdx = 1 TO RECORDS(ObjQ) 
+         GET(ObjQ,QNdx)
+         ObjQ:Name=UPPER(ObjQ:Name)
+         PUT(ObjQ)
+    END 
+    SORT(ObjQ,ObjQ:Name)
+    
     !--- Now Process 
     OPEN(AppClwFile,40h)
     IF ERRORCODE() THEN 
@@ -613,7 +628,16 @@ Take1LineRtn ROUTINE
        IF ERRORCODE() THEN CLEAR(DirQ).
        ModQ:FileSize = DirQ:Size
        ModQ:FileDate = DirQ:Date
-       ModQ:FileTime = DirQ:Time  
+       ModQ:FileTime = DirQ:Time 
+       
+       LenFN=LEN(CLIP(ModQ:FileName)) 
+       ObjQ:Name=SUB(ModQ:FileName,1,LenFN-4) &'.OBJ'  
+       GET(ObjQ,ObjQ:Name) 
+       IF ~ERRORCODE() THEN ModQ:ObjSize = ObjQ:Size.
+       ObjQ:Name=SUB(ModQ:FileName,1,LenFN-4) &'.RSC'  
+       GET(ObjQ,ObjQ:Name) 
+       IF ~ERRORCODE() THEN ModQ:RscSize = ObjQ:Size.
+
        ADD(ModuleQ)
 
        EXIT
