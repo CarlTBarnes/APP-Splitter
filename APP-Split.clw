@@ -58,7 +58,7 @@ Line       STRING(512)     !AppClw:Line
 
 BigDosFile   FILE,DRIVER('DOS'),PRE(Big)
     RECORD
-Block          STRING(8000)     !AppClw:Block
+Block          STRING(16000)     !AppClw:Block
     END 
   END 
   
@@ -135,10 +135,12 @@ ProcNamesInModule     STRING(2000)
 WorkNotes             STRING(8000)  
 TricksText            STRING(8000)  
 ExpFileName           STRING(260)  
-ExpFileText           STRING(8000)  
+ExpFileText           STRING(16000)  
+FileListXmlName       STRING(260)  
+FileListXmlText       STRING(16000)  
 
 Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to another APP'), |
-            AT(,,500,300),GRAY,SYSTEM,MAX,ICON('AppSplit.ico'),FONT('Seogo UI',9),RESIZE
+            AT(,,530,300),GRAY,SYSTEM,MAX,ICON('AppSplit.ico'),FONT('Seogo UI',9),RESIZE
         SHEET,AT(2,2),FULL,USE(?Sheet1),SCROLL,JOIN
             TAB(' APP to Process '),USE(?TabAPP)
                 PROMPT('Project Folder:'),AT(7,20),USE(?AppPathBS:Pmt)
@@ -235,6 +237,12 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
                         'Notepad')
                 ENTRY(@s255),AT(57,20,,11),FULL,USE(ExpFileName),SKIP,TRN,FONT('Consolas'),READONLY
                 TEXT,AT(7,36),FULL,USE(ExpFileText),HVSCROLL,FONT('Consolas',10),READONLY
+            END            
+            TAB(' File List '),USE(?TabFileList)
+                BUTTON('Notepad'),AT(7,19,42,12),USE(?FLXmlOpenNotepadBtn),SKIP,TIP('Open File List in ' & |
+                        'Notepad')
+                ENTRY(@s255),AT(57,20,,11),FULL,USE(FileListXmlName),SKIP,TRN,FONT('Consolas'),READONLY
+                TEXT,AT(7,36),FULL,USE(FileListXmlText),HVSCROLL,FONT('Consolas',10),READONLY
             END
             TAB(' Notes '),USE(?TabWorkNotes)
                 TEXT,AT(7,20),FULL,USE(WorkNotes),HVSCROLL,COLOR(0E1FFFFH)
@@ -350,7 +358,8 @@ MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or m
     OF ?MapProcOnlyBtn      ; DOO.MapProcedureOnly()   
     OF ?MapOpenNotepadBtn   ; IF EXISTS(MapLnkNameOfFile) THEN RUN('Notepad "' & CLIP(MapLnkNameOfFile) &'"').
     OF ?ExpOpenNotepadBtn   ; IF EXISTS(ExpFileName) THEN RUN('Notepad "' & CLIP(ExpFileName) &'"').
-    
+    OF ?FLXmlOpenNotepadBtn ; IF EXISTS(FileListXmlName) THEN RUN('Notepad "' & CLIP(FileListXmlName) &'"').
+                        
     OF   ?LoadLinkBtn 
     OROF ?LoadLinkReloadBtn 
          IF ~DOO.ProcessMAP() THEN CYCLE.
@@ -427,6 +436,8 @@ DOO.ProcessClw PROCEDURE(BOOL CheckExists=0)!,BOOL
     PUTINI('Cfg','File',AppClwNameOfFile,ConfigINI) 
     ExpFileName=AppPathBS & CLIP(TargetName) &'.EXP'
     TextLoadFromFile(ExpFileName,ExpFileText)
+    FileListXmlName=AppPathBS &'Obj\' & CLIP(DebugRelease) &'\'& CLIP(AppNameOnly) &'.CwProj.FileList.xml'
+    TextLoadFromFile(FileListXmlName,FileListXmlText)
     RETURN TRUE
 
 DOO.ProcessMAP PROCEDURE(BOOL CheckExists=0)!,BOOL
