@@ -2,6 +2,7 @@
 !---------------------------------------------------------------------------------------------
 ! 04/16/2021 First release on Github
 ! 04/19/2021 Copy MAP Imports List.
+! 04/19/2021 Copy Procedures. Proc MAP Size shows DLL Name if Import
 
 !TODO Source subfolder or folder for those that choose to generate that way.
 !TODO my Locator Class
@@ -78,6 +79,7 @@ Level       LONG        !ImpQ:Level
 ProcName    STRING(64)  !ImpQ:ProcName
 DllUpr      STRING(32)  !ImpQ:DllUpr
 ProcUpr     STRING(64)  !ImpQ:ProcUpr
+ProcNoAtF   STRING(64)  !ImpQ:ProcNoAtF and Upper
         END 
 Import2Q QUEUE(ImportQ),PRE(Imp2Q)
     END
@@ -116,7 +118,7 @@ ProcsTip        STRING(1024)            !ModQ:ProcsTip
 ProcedureQ    QUEUE,PRE(ProcQ)
 LineNo          LONG                    !ProcQ:LineNo
 ModName         STRING(40)              !ProcQ:ModName
-MapSize         LONG                    !ProcQ:MapSize  !Size from Map
+MapSize         STRING(24)              !ProcQ:MapSize  !Size from Map or DLL Name if Import
 ProcName        STRING(64)              !ProcQ:ProcName
 ProcTip         STRING(256)             !ProcQ:ProcsTip
 ProcUPR         STRING(64)              !ProcQ:ProcUPR
@@ -192,12 +194,13 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
                         '2)|FMP~Procedures~@s255@')
             END
             TAB(' &Procedures '),USE(?TabProcedures)
+                BUTTON('Copy'),AT(6,19,30,12),USE(?CopyProceduresBtn),SKIP
                 STRING('MAP Size is calculated from the MAP Addresses. Zero would indicate the Smart' & |
-                        ' Linker did not include a procedure that was not callered nor exported'),AT(7,19), |
+                        ' Linker did not include a procedure that was not callered nor exported'),AT(43,19), |
                         USE(?ProcMapSizeFYI)
                 LIST,AT(7,33),FULL,USE(?LIST:ProcedureQ),VSCROLL,FONT('Consolas',10),FROM(ProcedureQ), |
                         FORMAT('27R(2)|FM~Line~@n6@70L(2)|FM~Module Name~@s64@44R(2)|FM~MAP Size~C(0' & |
-                        ')@n9b@20L(2)|FMP~Procedure~@s255@')
+                        ')@s24@20L(2)|FMP~Procedure~@s255@')
             END
             TAB(' Map CL&W File Code '),USE(?TabClw)
                 LIST,AT(5,19),FULL,USE(?LIST:CodeQ),VSCROLL,FONT('Consolas',10),FROM(CodeQ), |
@@ -264,6 +267,7 @@ ProcessMAP          PROCEDURE(BOOL CheckExists=0),BOOL
 ExtRemove           PROCEDURE(*STRING FN, STRING ExtList)  !Remove .APP 
 Set_TabProcNames    PROCEDURE()
 CopyModsButton      PROCEDURE()
+CopyProceduresButton PROCEDURE()
 CopyImportsButton   PROCEDURE()
 MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or markers
     END
@@ -361,6 +365,7 @@ MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or m
     OF ?MapOpenNotepadBtn   ; IF EXISTS(MapLnkNameOfFile) THEN RUN('Notepad "' & CLIP(MapLnkNameOfFile) &'"').
     OF ?ExpOpenNotepadBtn   ; IF EXISTS(ExpFileName) THEN RUN('Notepad "' & CLIP(ExpFileName) &'"').
     OF ?FLXmlOpenNotepadBtn ; IF EXISTS(FileListXmlName) THEN RUN('Notepad "' & CLIP(FileListXmlName) &'"').
+    OF ?CopyProceduresBtn   ; DOO.CopyProceduresButton()                           
     OF ?CopyImportsBtn      ; DOO.CopyImportsButton()                           
     
     OF   ?LoadLinkBtn       ; IF ~DOO.ProcessMAP() THEN CYCLE.
@@ -498,6 +503,19 @@ MX   LONG
     SETCLIPBOARD(CB)
     RETURN    
 !--------------------
+DOO.CopyProceduresButton PROCEDURE()
+CB   ANY
+MX   LONG
+    CODE  
+    CB='Line<9>Module<9>MAP Size<9>Procedure<13,10>'
+    LOOP MX=1 TO Records(ProcedureQ)
+        GET(ProcedureQ,MX)
+        IF ProcQ:MapSize[1]<'A' THEN ProcQ:MapSize=DEFORMAT(ProcQ:MapSize). !Remove commas
+        CB=CB& ProcQ:LineNo &'<9>'& CLIP(ProcQ:ModName) &'<9>'&  CLIP(ProcQ:MapSize) &'<9>'&  CLIP(ProcQ:ProcName) &'<13,10>'
+    END         
+    SETCLIPBOARD(CB)
+    RETURN 
+!--------------------
 DOO.CopyImportsButton PROCEDURE()
 CB   ANY
 MX   LONG
@@ -511,7 +529,7 @@ ImQ  &ImportQ
     CB='DLL<9>Procedure<13,10>'
     LOOP MX=1 TO Records(ImQ)
         GET(ImQ,MX)
-        CB=CB& CLIP(ImQ.DllName) &'<9>'&  ImQ.ProcName &'<13,10>'
+        CB=CB& CLIP(ImQ.DllName) &'<9>'&  CLIP(ImQ.ProcName) &'<13,10>'
     END         
     SETCLIPBOARD(CB)
     RETURN     
@@ -707,7 +725,6 @@ Take1LineRtn ROUTINE
        ProcQ:ProcTip  = LEFT(AppClw:Line)
        ProcQ:ProcUPR  = UPPER(ProcQ:ProcName)
        ADD(ProcedureQ,ProcQ:LineNo)
-       !ADD(ProcedureQ,ProcQ:ProcName,ProcQ:ModName)
     END
 
     IF ~IsCLW THEN EXIT. 
@@ -766,7 +783,8 @@ MX      LONG
         DO Take1LineRtn
     END
     CLOSE(MapLnkFile)
-    DO MapSizeQ_Sort_Rtn
+    DO MapSizeQ_Sort_Rtn 
+    !WndPrvCls.QueueReflection(ImportQ,'ImportQ')
     RETURN
 
 !Imports
@@ -804,12 +822,12 @@ Take1LineRtn ROUTINE
     END 
     Cln1=INSTRING(':',ALine,1) ; IF ~Cln1 THEN EXIT.                !Look for 
     Spc1=INSTRING(' ',ALine,1) ; IF ~Spc1 THEN Spc1=SIZE(ALine).    !Look for 
- 
+    
+    CLEAR(ImportQ)
     ImpQ:DllName=SUB(ALine,1,Cln1-1)        ;  ImpQ:DllName[1]=UPPER(ImpQ:DllName[1])
     ImpQ:DllUpr =UPPER(ImpQ:DllName)
     ImpQ:ProcName=ALine[Cln1+1 : Spc1]      ;  ImpQ:ProcName[1]=UPPER(ImpQ:ProcName[1])
     ImpQ:ProcUpr=UPPER(ImpQ:ProcName)
-    
     IF OmitImportedData AND INSTRING('$',ImpQ:ProcName) THEN EXIT.
     
     CASE UPPER(ImpQ:DllName)
@@ -840,7 +858,10 @@ Take1LineRtn ROUTINE
     !Imports are UPPER so look up and try to make eaiser to read    
     EndF=INSTRING('@F',ImpQ:ProcName,1)     !Imports ewnd with @F
  !DB('EndF=' & EnDF &'  '& 
-    IF EndF>1 THEN      !Imports ewnd with @F 
+    IF EndF>1 THEN      !Imports ewnd with @F
+       IF ~NUMERIC(ImpQ:ProcUpr[EndF+2])             !@F# would be a Class Import @F12Xxxxx that is not something I want
+          ImpQ:ProcNoAtF = ImpQ:ProcUpr[1 : EndF-1]  !Proc name w/o @F to look up Procedures imported s/o mangle
+       END 
        ImpQ:ProcName[EndF : SIZE(ImpQ:ProcName)]=' '& ImpQ:ProcName[EndF : SIZE(ImpQ:ProcName)] !Insert space so easier to read
        ProcQ:ProcUPR  = UPPER(ImpQ:ProcName[1 : EndF-1]) 
        GET(ProcedureQ,ProcQ:ProcUPR)
@@ -906,18 +927,28 @@ MapSizeQ_Sort_Rtn ROUTINE
        Addr1=EVALUATE(MapzQ:Addr1 &'h')
        Addr2=EVALUATE(MapzQ:Addr2 &'h') 
        MapzQ:Size=Addr2-Addr1 
-       IF MapzQ:ProcUPR THEN 
+       IF MapzQ:ProcUPR THEN             !Put the .MAP Size in the Procedures List
           ProcQ:ProcUPR = MapzQ:ProcUPR
           GET(ProcedureQ,ProcQ:ProcUPR)
           IF ERRORCODE() THEN CYCLE.
-          ProcQ:MapSize = MapzQ:Size 
+          ProcQ:MapSize = ' '&FORMAT(MapzQ:Size,@n12)
           PUT(ProcedureQ)
           MapzQ:ProcNoAtF = ProcQ:ProcName  !Up Low Name
        END
        PUT(MapSizeQ) 
        ALine=MapzQ:Addr1 
     END
-
+    !Find any Procedures w/o a .MAP Size and see if they are Imports
+    LOOP MX=1 TO RECORDS(ProcedureQ)
+        GET(ProcedureQ,MX)
+        IF ProcQ:MapSize THEN CYCLE.
+        ImpQ:ProcNoAtF = ProcQ:ProcUPR
+        GET(ImportQ,ImpQ:ProcNoAtF) 
+        IF ERRORCODE() THEN CYCLE.
+        ProcQ:MapSize = ImpQ:DllName    !Put Import name into Size size so obvious external 
+        PUT(ProcedureQ)
+    END         
+    EXIT       
 !============================================================
 PathBS   PROCEDURE(STRING P)!,STRING
 L   LONG 
