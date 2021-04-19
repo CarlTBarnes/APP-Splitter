@@ -1,6 +1,7 @@
 ! APP Splitter by Carl Barnes - (c) 2018-2021 released under the MIT License
 !---------------------------------------------------------------------------------------------
 ! 04/16/2021 First release on Github
+! 04/19/2021 Copy MAP Imports List.
 
 !TODO Source subfolder or folder for those that choose to generate that way.
 !TODO my Locator Class
@@ -224,7 +225,7 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
                         'n9b@20L(2)F~Procedure Name~@s64@')
             END
             TAB('.MAP Imports '),USE(?TabLnkMap)
-                BUTTON('Reload MAP'),AT(5,19,46,12),USE(?LoadLinkReloadBtn),SKIP
+                BUTTON('Copy'),AT(5,19,,12),USE(?CopyImportsBtn),SKIP,TIP('Copy Imports to Clipboard')
                 ENTRY(@s255),AT(67,19,,11),FULL,USE(MapLnkNameOfFile,, ?MapLnkNameOfFile:3),SKIP,TRN, |
                         FONT('Consolas'),READONLY
                 LIST,AT(5,34,250),FULL,USE(?LIST:ImportQ),VSCROLL,FONT('Consolas',10),FROM(ImportQ), |
@@ -263,6 +264,7 @@ ProcessMAP          PROCEDURE(BOOL CheckExists=0),BOOL
 ExtRemove           PROCEDURE(*STRING FN, STRING ExtList)  !Remove .APP 
 Set_TabProcNames    PROCEDURE()
 CopyModsButton      PROCEDURE()
+CopyImportsButton   PROCEDURE()
 MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or markers
     END
   CODE
@@ -359,10 +361,9 @@ MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or m
     OF ?MapOpenNotepadBtn   ; IF EXISTS(MapLnkNameOfFile) THEN RUN('Notepad "' & CLIP(MapLnkNameOfFile) &'"').
     OF ?ExpOpenNotepadBtn   ; IF EXISTS(ExpFileName) THEN RUN('Notepad "' & CLIP(ExpFileName) &'"').
     OF ?FLXmlOpenNotepadBtn ; IF EXISTS(FileListXmlName) THEN RUN('Notepad "' & CLIP(FileListXmlName) &'"').
-                        
-    OF   ?LoadLinkBtn 
-    OROF ?LoadLinkReloadBtn 
-         IF ~DOO.ProcessMAP() THEN CYCLE.
+    OF ?CopyImportsBtn      ; DOO.CopyImportsButton()                           
+    
+    OF   ?LoadLinkBtn       ; IF ~DOO.ProcessMAP() THEN CYCLE.
     END  
 
     CASE FIELD()
@@ -477,7 +478,7 @@ DOO.Set_TabProcNames    PROCEDURE()
             '<13,10>File Name: ' & CLIP(ProcNames4File) & | 
             '<13,10>' 
     RETURN
-
+!--------------------
 DOO.CopyModsButton    PROCEDURE()
 CB   ANY
 MX   LONG  
@@ -495,8 +496,26 @@ MX   LONG
         CB=CB& CLIP(ModQ:FileName) &'<9>'&  ModQ:FileSize &'<9>'&  ModQ:ProcCnt &'<9>'& CLIP(ModQ:Procs) &'<13,10>'
     END         
     SETCLIPBOARD(CB)
-    RETURN 
-
+    RETURN    
+!--------------------
+DOO.CopyImportsButton PROCEDURE()
+CB   ANY
+MX   LONG
+ImQ  &ImportQ  
+    CODE  
+    EXECUTE POPUP('Sort by DLL Name|Sort by Procedure')
+      ImQ &= ImportQ
+      ImQ &= Import2Q
+      ELSE ; RETURN 
+    END 
+    CB='DLL<9>Procedure<13,10>'
+    LOOP MX=1 TO Records(ImQ)
+        GET(ImQ,MX)
+        CB=CB& CLIP(ImQ.DllName) &'<9>'&  ImQ.ProcName &'<13,10>'
+    END         
+    SETCLIPBOARD(CB)
+    RETURN     
+!--------------------        
 DOO.MapProcedureOnly PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or markers
 MX LONG,AUTO 
     CODE
@@ -581,7 +600,7 @@ DelimProcs    PSTRING(6)
          ObjQ:Name=UPPER(ObjQ:Name)
          PUT(ObjQ)
     END 
-    SORT(ObjQ,ObjQ:Name)
+    SORT(ObjQ,ObjQ:Name) 
     
     !--- Now Process 
     OPEN(AppClwFile,40h)
@@ -636,16 +655,17 @@ Take1LineRtn ROUTINE
 
        DirQ:Name=UPPER(ModQ:FileName)
        GET(DirQ,DirQ:Name)
-       IF ERRORCODE() THEN CLEAR(DirQ).
-       ModQ:FileSize = DirQ:Size
-       ModQ:FileDate = DirQ:Date
-       ModQ:FileTime = DirQ:Time 
+       IF ~ERRORCODE() THEN 
+          ModQ:FileSize = DirQ:Size
+          ModQ:FileDate = DirQ:Date
+          ModQ:FileTime = DirQ:Time 
+       END
        
-       LenFN=LEN(CLIP(ModQ:FileName)) 
-       ObjQ:Name=SUB(ModQ:FileName,1,LenFN-4) &'.OBJ'  
+       LenFN=LEN(CLIP(DirQ:Name)) 
+       ObjQ:Name=SUB(DirQ:Name,1,LenFN-4) &'.OBJ'  
        GET(ObjQ,ObjQ:Name) 
        IF ~ERRORCODE() THEN ModQ:ObjSize = ObjQ:Size.
-       ObjQ:Name=SUB(ModQ:FileName,1,LenFN-4) &'.RSC'  
+       ObjQ:Name=SUB(DirQ:Name,1,LenFN-4) &'.RSC'  
        GET(ObjQ,ObjQ:Name) 
        IF ~ERRORCODE() THEN ModQ:RscSize = ObjQ:Size.
 
