@@ -479,8 +479,10 @@ DOO.Set_TabProcNames    PROCEDURE()
     ProcNames4File = AppPathBS & ModQ:FileName 
     ProcNamesInModule= CLIP(ModQ:ProcsTip) & |
             '<13,10,13,10>Proc Count: ' & ModQ:ProcCnt & |
-            '<13,10>File Size: ' & ModQ:FileSize & |
-            '<13,10>File Name: ' & CLIP(ProcNames4File) & | 
+            '<13,10>CLW Size: ' & ModQ:FileSize & |
+            '<13,10>OBJ Size: ' & ModQ:OBJSize & |
+            '<13,10>RSC Size: ' & ModQ:RSCSize & |
+     '<13,10><13,10>File Name: ' & CLIP(ProcNames4File) & | 
             '<13,10>' 
     RETURN
 !--------------------
