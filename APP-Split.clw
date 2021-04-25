@@ -3,6 +3,7 @@
 ! 04/16/2021 First release on Github
 ! 04/19/2021 Copy MAP Imports List.
 ! 04/19/2021 Copy Procedures. Proc MAP Size shows DLL Name if Import
+! 04/25/2021 Exports List and "Export" column in Procedure Queue
 
 !TODO Source subfolder or folder for those that choose to generate that way.
 !TODO my Locator Class
@@ -32,6 +33,7 @@ HeaderPressed PROCEDURE(SHORT ForceSortByColumn=0) !Call in OF EVENT:HeaderPress
   
   MAP
 ProcessAppClwFile  PROCEDURE() 
+LoadExportExpFile  PROCEDURE() !Loads ExportQ from EXP File Text
 LoadLinkMapFile    PROCEDURE()
 LittleTextWindow   PROCEDURE(STRING Txt,<STRING InCaption>) 
 LoadTricksText     PROCEDURE()               
@@ -73,6 +75,12 @@ Line       STRING(512)     !MapLnk:Line
   END
 
 !Region Queues == Queues == Queues == Queues == Queues == Queues ==
+ExportQ QUEUE,PRE(ExpQ)
+ProcName    STRING(64)  !ExpQ:ProcName
+ProcUpr     STRING(64)  !ExpQ:ProcUpr
+ProcNoAtF   STRING(64)  !ExpQ:ProcNoAtF and Upper
+        END 
+
 ImportQ QUEUE,PRE(ImpQ)
 DllName     STRING(32)  !ImpQ:DllName
 Level       LONG        !ImpQ:Level
@@ -119,6 +127,7 @@ ProcedureQ    QUEUE,PRE(ProcQ)
 LineNo          LONG                    !ProcQ:LineNo
 ModName         STRING(40)              !ProcQ:ModName
 MapSize         STRING(24)              !ProcQ:MapSize  !Size from Map or DLL Name if Import
+Exported        STRING(8)               !ProcQ:Exported Export or External
 ProcName        STRING(64)              !ProcQ:ProcName
 ProcTip         STRING(256)             !ProcQ:ProcsTip
 ProcUPR         STRING(64)              !ProcQ:ProcUPR
@@ -198,9 +207,9 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
                 STRING('MAP Size is calculated from the MAP Addresses. Zero would indicate the Smart' & |
                         ' Linker did not include a procedure that was not callered nor exported'),AT(43,19), |
                         USE(?ProcMapSizeFYI)
-                LIST,AT(7,33),FULL,USE(?LIST:ProcedureQ),VSCROLL,FONT('Consolas',10),FROM(ProcedureQ), |
-                        FORMAT('27R(2)|FM~Line~@n6@70L(2)|FM~Module Name~@s64@44R(2)|FM~MAP Size~C(0' & |
-                        ')@s24@20L(2)|FMP~Procedure~@s255@')
+                LIST,AT(7,33),FULL,USE(?LIST:ProcedureQ),VSCROLL,FONT('Consolas',10),FROM(ProcedureQ),FORMAT('27R(2)|FM~' & |
+                        'Line~@n6@70L(2)|FM~Module Name~@s64@44R(2)|FM~MAP Size~C(0)@s24@38L(2)|FM~Export~C(0)@s8@20L(' & |
+                        '2)|FMP~Procedure~@s255@')                        
             END
             TAB(' Map CL&W File Code '),USE(?TabClw)
                 LIST,AT(5,19),FULL,USE(?LIST:CodeQ),VSCROLL,FONT('Consolas',10),FROM(CodeQ), |
@@ -240,7 +249,9 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
                 BUTTON('Notepad'),AT(7,19,42,12),USE(?ExpOpenNotepadBtn),SKIP,TIP('Open EXP file in ' & |
                         'Notepad')
                 ENTRY(@s255),AT(57,20,,11),FULL,USE(ExpFileName),SKIP,TRN,FONT('Consolas'),READONLY
-                TEXT,AT(7,36),FULL,USE(ExpFileText),HVSCROLL,FONT('Consolas',10),READONLY
+                LIST,AT(7,36,190),FULL,USE(?LIST:ExportQ),HVSCROLL,FONT('Consolas',10),FROM(ExportQ),FORMAT('20L(2)|FM~Ex' & |
+                        'ported Procedures~@s64@')
+                TEXT,AT(205,36),FULL,USE(ExpFileText),HVSCROLL,FONT('Consolas',10),READONLY
             END            
             TAB(' File List '),USE(?TabFileList)
                 BUTTON('Notepad'),AT(7,19,42,12),USE(?FLXmlOpenNotepadBtn),SKIP,TIP('Open File List in ' & |
@@ -262,6 +273,7 @@ SortClsProc CBSortClass1
 SortClsMapZ CBSortClass1
 ConfigINI  STRING('.\Config.INI') 
 DOO CLASS
+ProcedureListSelect PROCEDURE(STRING ProcName, BOOL CheckMouse2=1)
 ProcessCLW          PROCEDURE(BOOL CheckExists=0),BOOL
 ProcessMAP          PROCEDURE(BOOL CheckExists=0),BOOL
 ExtRemove           PROCEDURE(*STRING FN, STRING ExtList)  !Remove .APP 
@@ -297,6 +309,7 @@ MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or m
   ?LIST:ProcedureQ{PROP:LineHeight} = 1 + ?LIST:ProcedureQ{PROP:LineHeight} 
   ?LIST:CodeQ{PROP:LineHeight} = 1 + ?LIST:CodeQ{PROP:LineHeight} 
   ?LIST:ImportQ{PROP:LineHeight} = 1 + ?LIST:ImportQ{PROP:LineHeight} 
+  ?LIST:ExportQ{PROP:LineHeight} = 1 + ?LIST:ExportQ{PROP:LineHeight} 
   SortClsMods.Init(ModuleQ, ?LIST:ModuleQ,1) 
   SortClsProc.Init(ProcedureQ, ?LIST:ProcedureQ,1)                         
   SortClsMapZ.Init(MapSizeQ, ?LIST:MapSizeQ,3)  
@@ -423,10 +436,42 @@ MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or m
             END 
         OF EVENT:HeaderPressed ; SortClsMapZ.HeaderPressed()   
         END      
+
+    OF ?LIST:ImportQ 
+        CASE EVENT()
+        OF EVENT:NewSelection  
+            GET(ImportQ,CHOICE(?LIST:ImportQ))
+            DOO.ProcedureListSelect(ImpQ:ProcNoAtF)
+        END
+    OF ?LIST:Import2Q 
+        CASE EVENT()
+        OF EVENT:NewSelection  
+            GET(Import2Q,CHOICE(?LIST:Import2Q))
+            DOO.ProcedureListSelect(Imp2Q:ProcNoAtF)
+        END
+
+    OF ?LIST:ExportQ 
+        CASE EVENT()
+        OF EVENT:NewSelection  
+            GET(ExportQ,CHOICE(?LIST:ExportQ)) 
+            DOO.ProcedureListSelect(ExpQ:ProcNoAtF)
+        END
+
     END 
            
   END
-  RETURN   
+  RETURN 
+!-------------------------------------------------
+DOO.ProcedureListSelect PROCEDURE(STRING ProcName, BOOL CheckMouse2=1)
+    CODE
+    IF ~CheckMouse2 OR KEYCODE()=MouseLeft2 THEN
+       ProcQ:ProcUPR = UPPER(ProcName) 
+       GET(ProcedureQ,ProcQ:ProcUPR)
+       IF ~ERRORCODE() THEN 
+           SELECT(?LIST:ProcedureQ,POINTER(ProcedureQ))
+       END
+    END
+    RETURN
 !-------------------------------------------------
 DOO.ProcessClw PROCEDURE(BOOL CheckExists=0)!,BOOL
     CODE  
@@ -441,7 +486,7 @@ DOO.ProcessClw PROCEDURE(BOOL CheckExists=0)!,BOOL
     SELECT(?TabModules) 
     PUTINI('Cfg','File',AppClwNameOfFile,ConfigINI) 
     ExpFileName=AppPathBS & CLIP(TargetName) &'.EXP'
-    TextLoadFromFile(ExpFileName,ExpFileText)
+    TextLoadFromFile(ExpFileName,ExpFileText) 
     FileListXmlName=AppPathBS &'Obj\' & CLIP(DebugRelease) &'\'& CLIP(AppNameOnly) &'.CwProj.FileList.xml'
     TextLoadFromFile(FileListXmlName,FileListXmlText)
     RETURN TRUE
@@ -457,6 +502,7 @@ DOO.ProcessMAP PROCEDURE(BOOL CheckExists=0)!,BOOL
         RETURN TRUE        
     END
     LoadLinkMapFile() 
+    LoadExportExpFile()
     SELECT(?TabLnkMap) 
     PUTINI('Cfg','LnkMap',MapLnkNameOfFile,ConfigINI)
     RETURN True   
@@ -748,6 +794,65 @@ FinishModuleRtn ROUTINE     !Rewrite Procs in Alpha order . could be optional
     PUT(ModuleQ)
     FREE(ModProcQ)    
     
+!==========================================================
+LoadExportExpFile  PROCEDURE() !Loads ExportQ from EXP File Text
+X LONG,AUTO
+L LONG,AUTO
+ALine STRING(255),AUTO
+ULine STRING(255),AUTO
+InExports BOOL
+    CODE
+    FREE(ExportQ)
+    LOOP L=1 TO ?ExpFileText{PROP:LineCount}
+         ALine=LEFT(?ExpFileText{PROP:Line,L})
+         IF ~ALine[1] OR ALine[1]=';' THEN CYCLE.
+         IF ~InExports THEN 
+             IF UPPER(ALine)='EXPORTS' THEN InExports=1.
+             CYCLE
+         END
+         ! Business$TYPE$BUS:RECORD @?  $ Data
+         ! PROMANAGEMENTSYNC@FOl @?     @F Function
+         X=INSTRING(' @',ALine,1) ; IF X<2 THEN CYCLE. !Not Export
+         ALine=UPPER(ALine[1 : X])
+         ULine=UPPER(ALine[1 : X])
+         X=INSTRING('@F',ULine,1) ; IF ~X THEN CYCLE. !Not @F Funciton
+         IF SUB(ALine,X,999)='@F' THEN  !Is it just @F 
+            ALine=SUB(ALine,1,X-1)      !cut @F off, only shows if Parms
+         END 
+         ExpQ:ProcName=SUB(ALine,1,X-1)&'  '& SUB(ALine,X,999)
+         ExpQ:ProcUpr=ULine
+         ExpQ:ProcNoAtF=SUB(ULine,1,X-1) 
+         ADD(ExportQ)
+    END
+    SORT(ExportQ,ExpQ:ProcUpr)
+!    WndPrvCls.QueueReflection(ExportQ,'ExportQ')
+!    WndPrvCls.QueueReflection(ProcedureQ,'ProcedureQ')
+    
+    LOOP X=1 TO RECORDS(ProcedureQ)
+        GET(ProcedureQ,X)
+        ExpQ:ProcNoAtF=ProcQ:ProcUPR
+        GET(ExportQ,ExpQ:ProcNoAtF) 
+        IF ~ERRORCODE() THEN 
+           ProcQ:Exported='Export' 
+        ELSIF ProcQ:MapSize[1]>='A' THEN 
+           ProcQ:Exported='Import' 
+        ELSE
+            CYCLE
+        END 
+        PUT(ProcedureQ)
+    END    
+    RETURN
+!EXP Sample    
+!    LIBRARY 'BIZDLL' GUI
+!      ;--Rebase SetImageBase Template
+!    EXPORTS
+!      $Business @?                <-- $ Data
+!      Business$BUS:RECORD @?
+!      Business$TYPE$BUS:RECORD @?
+!      BRWFORMBIZ@F @?             <-- @F Function
+!      FRMFORMBIZ@F @?
+!      FRMBIZDETAIL@FUcUcUcRUcRAsbRAeRAeReRe @?
+!    ; a comment starts with semicolon
 !==========================================================
 LoadLinkMapFile  PROCEDURE()
 InImports   SHORT
