@@ -30,6 +30,7 @@ Who2nd      STRING(129)
 Init        PROCEDURE(QUEUE ListQueue, LONG ListFEQ, SHORT SortColumnNow=0)
 SetSortCol  PROCEDURE(SHORT SortColNow)
 HeaderPressed PROCEDURE(SHORT ForceSortByColumn=0) !Call in OF EVENT:HeaderPressed for LIST
+WhoSortName PROCEDURE(SHORT QFieldNow, STRING WhoNameNow),STRING,VIRTUAL
     END
   
   MAP
@@ -134,6 +135,7 @@ Exported        STRING(8)               !ProcQ:Exported Export or External
 ProcName        STRING(64)              !ProcQ:ProcName
 ProcTip         STRING(256)             !ProcQ:ProcsTip
 ProcUPR         STRING(64)              !ProcQ:ProcUPR
+ModUPR          STRING(40)              !ProcQ:ModUPR
             END
 
 CodeQ    QUEUE,PRE(CodeQ)
@@ -273,8 +275,12 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
 Fld LONG,AUTO
 QX  LONG,AUTO
 SortClsMods CBSortClass1
-SortClsProc CBSortClass1
-SortClsMapZ CBSortClass1
+SortClsProc CLASS(CBSortClass1)
+WhoSortName     PROCEDURE(SHORT QFieldNow, STRING WhoNameNow),STRING,DERIVED
+            END
+SortClsMapZ CLASS(CBSortClass1)
+WhoSortName     PROCEDURE(SHORT QFieldNow, STRING WhoNameNow),STRING,DERIVED
+            END
 ConfigINI  STRING('.\Config.INI') 
 DOO CLASS
 ProcedureListSelect PROCEDURE(STRING ProcName, BOOL CheckMouse2=1)
@@ -783,7 +789,8 @@ Take1LineRtn ROUTINE
     IF ~IsRDRUSF THEN  
        CLEAR(ProcedureQ)
        ProcQ:LineNo   = LineNo
-       ProcQ:ModName  = LastModule
+       ProcQ:ModName  = LastModule 
+       ProcQ:ModUPR   = UPPER(ProcQ:ModName)
        ProcQ:ProcName = ALine            
        ProcQ:ProcName[1]=UPPER(ProcQ:ProcName[1])
        ProcQ:ProcTip  = LEFT(AppClw:Line)
@@ -1158,13 +1165,19 @@ QFieldLast &SHORT
 Who1st     &STRING
 Who2nd     &STRING
     CODE
-    ColumnNow&=SELF.ColumnNow;ColumnLast&=SELF.ColumnLast;QFieldNow&=SELF.QFieldNow;QFieldLast&=SELF.QFieldLast;Who1st&=SELF.Who1st;Who2nd&=SELF.Who2nd
+    ColumnNow&=SELF.ColumnNow
+    ColumnLast&=SELF.ColumnLast
+    QFieldNow&=SELF.QFieldNow
+    QFieldLast&=SELF.QFieldLast
+    Who1st&=SELF.Who1st
+    Who2nd&=SELF.Who2nd
     LChoice = CHOICE(SELF.FEQ)
     IF LChoice THEN GET(SELF.QRef, LChoice) ; QRecord=SELF.QRef.
     ColumnNow=CHOOSE(~ForceSortByColumn, SELF.FEQ{PROPList:MouseDownField}, ForceSortByColumn)
     QFieldNow=SELF.FEQ{PROPLIST:FieldNo,ColumnNow} 
     IF QFieldNow<>ABS(QFieldLast) AND Who1st THEN Who2nd=',' & Who1st.
-    Who1st=CHOOSE(QFieldNow=QFieldLast,'-','+') & WHO(SELF.QRef,QFieldNow)
+!    Who1st=CHOOSE(QFieldNow=QFieldLast,'-','+') & WHO(SELF.QRef,QFieldNow)
+    Who1st=CHOOSE(QFieldNow=QFieldLast,'-','+') & SELF.WhoSortName(QFieldNow, WHO(SELF.QRef,QFieldNow)) 
  SELF.FEQ{PROP:Tip}='Sort ColumnNow:'& ColumnNow  &' QNow=' & QFieldNow &' QLast='& QFieldLast &' Who=' & CLIP(Who1st) & Who2nd
     SORT(SELF.QRef,CLIP(Who1st) & Who2nd)
     SELF.FEQ{PROPLIST:Locator,ColumnNow}=1
@@ -1177,5 +1190,21 @@ Who2nd     &STRING
     END
     DISPLAY
     RETURN
+CBSortClass1.WhoSortName PROCEDURE(SHORT QFieldNow, STRING WhoNameNow)!,STRING,VIRTUAL
+    CODE
+    RETURN WhoNameNow  
+SortClsProc.WhoSortName PROCEDURE(SHORT QFieldNow, STRING WhoNameNow)!,STRING,DERIVED
+    CODE
+    CASE UPPER(WhoNameNow)
+    OF 'PROCQ:PROCNAME' ; RETURN 'PROCQ:PROCUPR'
+    OF 'PROCQ:MODNAME'  ; RETURN 'PROCQ:MODUPR'   
+    END 
+    RETURN WhoNameNow  
+SortClsMapZ.WhoSortName PROCEDURE(SHORT QFieldNow, STRING WhoNameNow)!,STRING,DERIVED
+    CODE
+    CASE UPPER(WhoNameNow)
+    OF 'MAPZQ:PROCNOATF' ; RETURN 'MAPZQ:PROCUPR'
+    END 
+    RETURN WhoNameNow  
 !EndRegion    
     
