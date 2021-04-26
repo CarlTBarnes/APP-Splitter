@@ -4,6 +4,7 @@
 ! 04/19/2021 Copy MAP Imports List.
 ! 04/19/2021 Copy Procedures. Proc MAP Size shows DLL Name if Import
 ! 04/25/2021 Exports List and "Export" column in Procedure Queue
+! 04/26/2021 Export column in Procedures show "Import". Exports List Column tip with EXP file info
 
 !TODO Source subfolder or folder for those that choose to generate that way.
 !TODO my Locator Class
@@ -77,6 +78,8 @@ Line       STRING(512)     !MapLnk:Line
 !Region Queues == Queues == Queues == Queues == Queues == Queues ==
 ExportQ QUEUE,PRE(ExpQ)
 ProcName    STRING(64)  !ExpQ:ProcName
+Tip         STRING(400) !ExpQ:Tip
+LenOfName   BYTE        !ExpQ:LenOfName !Position of @F - 1 so includes trailing space 
 ProcUpr     STRING(64)  !ExpQ:ProcUpr
 ProcNoAtF   STRING(64)  !ExpQ:ProcNoAtF and Upper
         END 
@@ -249,8 +252,8 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
                 BUTTON('Notepad'),AT(7,19,42,12),USE(?ExpOpenNotepadBtn),SKIP,TIP('Open EXP file in ' & |
                         'Notepad')
                 ENTRY(@s255),AT(57,20,,11),FULL,USE(ExpFileName),SKIP,TRN,FONT('Consolas'),READONLY
-                LIST,AT(7,36,190),FULL,USE(?LIST:ExportQ),HVSCROLL,FONT('Consolas',10),FROM(ExportQ),FORMAT('20L(2)|FM~Ex' & |
-                        'ported Procedures~@s64@')
+                LIST,AT(7,36,190),FULL,USE(?LIST:ExportQ),HVSCROLL,FONT('Consolas',10),FROM(ExportQ), |
+                        FORMAT('20L(2)|FMP~Exported Procedures~@s64@')
                 TEXT,AT(205,36),FULL,USE(ExpFileText),HVSCROLL,FONT('Consolas',10),READONLY
             END            
             TAB(' File List '),USE(?TabFileList)
@@ -268,6 +271,7 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
         END
     END
 Fld LONG,AUTO
+QX  LONG,AUTO
 SortClsMods CBSortClass1
 SortClsProc CBSortClass1
 SortClsMapZ CBSortClass1
@@ -416,6 +420,18 @@ MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or m
                SELECT(?LIST:CodeQ,POINTER(CodeQ))
             END 
         OF EVENT:HeaderPressed ; SortClsProc.HeaderPressed()   
+           IF SortClsProc.ColumnNow=4 THEN          !Export Column is the Sort choice
+              GET(ProcedureQ,CHOICE(?LIST:ProcedureQ))
+              IF ProcQ:Exported<>'' THEN            !Current record <>'Export' but if Import that's ok
+                 LOOP QX=1 TO RECORDS(ProcedureQ)   !Find an Export and Select
+                    GET(ProcedureQ,QX) 
+                    IF ProcQ:Exported='Export' THEN 
+                       SELECT(?LIST:ProcedureQ,QX)
+                       BREAK 
+                    END  
+                 END 
+              END
+           END 
         END
 
     OF ?LIST:CodeQ 
@@ -812,14 +828,19 @@ InExports BOOL
          END
          ! Business$TYPE$BUS:RECORD @?  $ Data
          ! PROMANAGEMENTSYNC@FOl @?     @F Function
-         X=INSTRING(' @',ALine,1) ; IF X<2 THEN CYCLE. !Not Export
-         ALine=UPPER(ALine[1 : X])
-         ULine=UPPER(ALine[1 : X])
-         X=INSTRING('@F',ULine,1) ; IF ~X THEN CYCLE. !Not @F Funciton
-         IF SUB(ALine,X,999)='@F' THEN  !Is it just @F 
+         X=INSTRING(' @',ALine,1) 
+!         IF X<2 THEN STOP('In Exports no " @" in Line ' & L & '<13,10>Line: ' & ALine ) . !should not happen when in Exports and not ; comment
+         IF X<2 THEN CYCLE.             !No ' @?' or ' @#' so Not Export ... should not happen
+         ALine=ALine[1 : X]             !Cut off @? leave @F ... leave the Gun take the 
+         ULine=UPPER(ALine[1 : X])      !Cut off @? or @#
+         X=INSTRING('@F',ULine,1) 
+         IF ~X THEN CYCLE.              !Not @F Funciton must be $Data
+         ExpQ:Tip='Line ' & L & ' of EXP<13,10>' & ALine          
+         IF SUB(ULine,X,999)='@F' THEN  !Is it just @F 
             ALine=SUB(ALine,1,X-1)      !cut @F off, only shows if Parms
-         END 
+         END
          ExpQ:ProcName=SUB(ALine,1,X-1)&'  '& SUB(ALine,X,999)
+         ExpQ:LenOfName=X                   !X includes 1 trailing space
          ExpQ:ProcUpr=ULine
          ExpQ:ProcNoAtF=SUB(ULine,1,X-1) 
          ADD(ExportQ)
@@ -834,6 +855,13 @@ InExports BOOL
         GET(ExportQ,ExpQ:ProcNoAtF) 
         IF ~ERRORCODE() THEN 
            ProcQ:Exported='Export' 
+           ExpQ:ProcName=SUB(ProcQ:ProcName,1,ExpQ:LenOfName) & SUB(ExpQ:ProcName,ExpQ:LenOfName+1,99) 
+           CodeQ:LineNo=ProcQ:LineNo
+           GET(CodeQ,CodeQ:LineNo)
+           IF ~ERRORCODE() THEN 
+              ExpQ:Tip=CLIP(ExpQ:Tip) &'<13,10,13,10>' & LEFT(CodeQ:Source)
+           END 
+           PUT(ExportQ)
         ELSIF ProcQ:MapSize[1]>='A' THEN 
            ProcQ:Exported='Import' 
         ELSE
