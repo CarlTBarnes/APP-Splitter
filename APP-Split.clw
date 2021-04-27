@@ -241,9 +241,11 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
                         '@?40R(2)|M~Start~C(0)@s8@40R(2)|M~End Addr~C(0)@s8@44R(2)|M~Code Size~L(2)@' & |
                         'n9b@20L(2)F~Procedure Name~@s64@')
             END
-            TAB('.MAP Imports '),USE(?TabLnkMap)
-                BUTTON('Copy'),AT(5,19,,12),USE(?CopyImportsBtn),SKIP,TIP('Copy Imports to Clipboard')
-                ENTRY(@s255),AT(67,19,,11),FULL,USE(MapLnkNameOfFile,, ?MapLnkNameOfFile:3),SKIP,TRN, |
+            TAB('.MAP Imports '),USE(?TabLnkMap)   
+                BUTTON('Copy'),AT(5,19,29,12),USE(?CopyImportsBtn),SKIP,TIP('Copy Imports to Clipboard')
+                BUTTON('+'),AT(39,19,12,12),USE(?ImportsExpandBtn),SKIP,TIP('Expand All')
+                BUTTON('-'),AT(54,19,12,12),USE(?ImportsContractBtn),SKIP,TIP('Contract All')
+                ENTRY(@s255),AT(74,19,,11),FULL,USE(MapLnkNameOfFile,, ?MapLnkNameOfFile:3),SKIP,TRN, |
                         FONT('Consolas'),READONLY
                 LIST,AT(5,34,250),FULL,USE(?LIST:ImportQ),VSCROLL,FONT('Consolas',10),FROM(ImportQ), |
                         FORMAT('60L(2)|FMT~DLL Name~@s32@?20L(2)|FM~Procedure~@s64@')
@@ -283,6 +285,7 @@ WhoSortName     PROCEDURE(SHORT QFieldNow, STRING WhoNameNow),STRING,DERIVED
             END
 ConfigINI  STRING('.\Config.INI') 
 DOO CLASS
+ImportTreeExpand    PROCEDURE(SHORT ExpandContractSign1)
 ProcedureListSelect PROCEDURE(STRING ProcName, BOOL CheckMouse2=1)
 ProcessCLW          PROCEDURE(BOOL CheckExists=0),BOOL
 ProcessMAP          PROCEDURE(BOOL CheckExists=0),BOOL
@@ -389,7 +392,9 @@ MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or m
     OF ?ExpOpenNotepadBtn   ; IF EXISTS(ExpFileName) THEN RUN('Notepad "' & CLIP(ExpFileName) &'"').
     OF ?FLXmlOpenNotepadBtn ; IF EXISTS(FileListXmlName) THEN RUN('Notepad "' & CLIP(FileListXmlName) &'"').
     OF ?CopyProceduresBtn   ; DOO.CopyProceduresButton()                           
-    OF ?CopyImportsBtn      ; DOO.CopyImportsButton()                           
+    OF ?CopyImportsBtn      ; DOO.CopyImportsButton()
+    OF ?ImportsExpandBtn    ; DOO.ImportTreeExpand(1)
+    OF ?ImportsContractBtn  ; DOO.ImportTreeExpand(-1)
     
     OF   ?LoadLinkBtn       ; IF ~DOO.ProcessMAP() THEN CYCLE.
     END  
@@ -493,6 +498,17 @@ DOO.ProcedureListSelect PROCEDURE(STRING ProcName, BOOL CheckMouse2=1)
            SELECT(?LIST:ProcedureQ,POINTER(ProcedureQ))
        END
     END
+    RETURN
+!-------------------------------------------------
+DOO.ImportTreeExpand    PROCEDURE(SHORT ExpandContractSign1)
+    CODE
+    LOOP QX=1 TO RECORDS(ImportQ)   !Find an Export and Select
+       GET(ImportQ,QX) 
+       IF ABS(ImpQ:Level) <> 1 THEN CYCLE.
+       ImpQ:Level = ExpandContractSign1
+       PUT(ImportQ) 
+    END 
+    DISPLAY
     RETURN
 !-------------------------------------------------
 DOO.ProcessClw PROCEDURE(BOOL CheckExists=0)!,BOOL
