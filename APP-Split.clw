@@ -205,7 +205,7 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
                 LIST,AT(7,33),FULL,USE(?LIST:ModuleQ),VSCROLL,FONT('Consolas',10),FROM(ModuleQ),FORMAT('23R(2)|FM~Line~C' & |
                         '(0)@n5@60L(2)|FM~Module Name~@s64@40R(2)|FM~CLW Size~C(0)@n9@40R(2)|FM~OBJ Size~C(0)@n9@40R(2)|' & |
                         'FM~RSC Size~C(0)@n9@36R(2)|FM~Date~C(0)@d1-@28R(2)|FM~Time~C(0)@t1@24R(2)|FM~Count~C(0)@n4@20L(' & |
-                        '2)|FMP~Procedures~@s255@')
+                        '2)FP~Procedures~@s255@')
             END
             TAB(' &Procedures '),USE(?TabProcedures)
                 BUTTON('Copy'),AT(6,19,30,12),USE(?CopyProceduresBtn),SKIP
@@ -214,11 +214,11 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
                         USE(?ProcMapSizeFYI)
                 LIST,AT(7,33),FULL,USE(?LIST:ProcedureQ),VSCROLL,FONT('Consolas',10),FROM(ProcedureQ),FORMAT('27R(2)|FM~' & |
                         'Line~@n6@70L(2)|FM~Module Name~@s64@44R(2)|FM~MAP Size~C(0)@s24@38L(2)|FM~Export~C(0)@s8@20L(' & |
-                        '2)|FMP~Procedure~@s255@')                        
+                        '2)FP~Procedure~@s255@')                        
             END
             TAB(' Map CL&W File Code '),USE(?TabClw)
                 LIST,AT(5,19),FULL,USE(?LIST:CodeQ),VSCROLL,FONT('Consolas',10),FROM(CodeQ), |
-                        FORMAT('29R(2)|FM~Line~@n7@61L(2)|FM~Module Name~@s32@20L(2)|FMP~CODE - Doub' & |
+                        FORMAT('29R(2)|FM~Line~@n7@61L(2)|FM~Module Name~@s32@20L(2)FP~CODE - Doub' & |
                         'le click on line to open code line for copy~@s255@')
             END
             TAB(' File View '),USE(?TabViewModule)
@@ -248,16 +248,16 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
                 ENTRY(@s255),AT(74,19,,11),FULL,USE(MapLnkNameOfFile,, ?MapLnkNameOfFile:3),SKIP,TRN, |
                         FONT('Consolas'),READONLY
                 LIST,AT(5,34,250),FULL,USE(?LIST:ImportQ),VSCROLL,FONT('Consolas',10),FROM(ImportQ), |
-                        FORMAT('60L(2)|FMT~DLL Name~@s32@?20L(2)|FM~Procedure~@s64@')
+                        FORMAT('60L(2)|FMT~DLL Name~@s32@?20L(2)F~Procedure~@s64@')
                 LIST,AT(260,34),FULL,USE(?LIST:Import2Q),VSCROLL,FONT('Consolas',10),FROM(Import2Q), |
-                        FORMAT('49L(2)|FM~DLL Name~@s32@20L(2)|FM~By Procedure~@s64@?#3#')
+                        FORMAT('49L(2)|FM~DLL Name~@s32@20L(2)F~By Procedure~@s64@?#3#')
             END
             TAB(' Exports '),USE(?TabExports)
                 BUTTON('Notepad'),AT(7,19,42,12),USE(?ExpOpenNotepadBtn),SKIP,TIP('Open EXP file in ' & |
                         'Notepad')
                 ENTRY(@s255),AT(57,20,,11),FULL,USE(ExpFileName),SKIP,TRN,FONT('Consolas'),READONLY
                 LIST,AT(7,36,190),FULL,USE(?LIST:ExportQ),HVSCROLL,FONT('Consolas',10),FROM(ExportQ), |
-                        FORMAT('20L(2)|FMP~Exported Procedures~@s64@')
+                        FORMAT('20L(2)FP~Exported Procedures~@s64@')
                 TEXT,AT(205,36),FULL,USE(ExpFileText),HVSCROLL,FONT('Consolas',10),READONLY
             END            
             TAB(' File List '),USE(?TabFileList)
@@ -274,7 +274,7 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
             END
         END
     END
-Fld LONG,AUTO
+
 QX  LONG,AUTO
 SortClsMods CBSortClass1
 SortClsProc CLASS(CBSortClass1)
@@ -286,6 +286,7 @@ WhoSortName     PROCEDURE(SHORT QFieldNow, STRING WhoNameNow),STRING,DERIVED
 ConfigINI  STRING('.\Config.INI') 
 DOO CLASS
 ImportTreeExpand    PROCEDURE(SHORT ExpandContractSign1)
+ListProps4NiceLook  PROCEDURE()
 ProcedureListSelect PROCEDURE(STRING ProcName, BOOL CheckMouse2=1)
 ProcessCLW          PROCEDURE(BOOL CheckExists=0),BOOL
 ProcessMAP          PROCEDURE(BOOL CheckExists=0),BOOL
@@ -317,19 +318,11 @@ MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or m
   OPEN(Window) 
   0{PROP:MinWidth} = 0{PROP:Width} * .50
   0{PROP:MinHeight} = 0{PROP:Height} * .60
-  ?Sheet1{PROP:TabSheetStyle}=1   
-  ?LIST:ModuleQ{PROP:LineHeight} = 1 + ?LIST:ModuleQ{PROP:LineHeight} 
-  ?LIST:ProcedureQ{PROP:LineHeight} = 1 + ?LIST:ProcedureQ{PROP:LineHeight} 
-  ?LIST:CodeQ{PROP:LineHeight} = 1 + ?LIST:CodeQ{PROP:LineHeight} 
-  ?LIST:ImportQ{PROP:LineHeight} = 1 + ?LIST:ImportQ{PROP:LineHeight} 
-  ?LIST:ExportQ{PROP:LineHeight} = 1 + ?LIST:ExportQ{PROP:LineHeight} 
+  ?Sheet1{PROP:TabSheetStyle}=1
+  DOO.ListProps4NiceLook()
   SortClsMods.Init(ModuleQ, ?LIST:ModuleQ,1) 
   SortClsProc.Init(ProcedureQ, ?LIST:ProcedureQ,1)                         
   SortClsMapZ.Init(MapSizeQ, ?LIST:MapSizeQ,3)  
-  Fld=0 
-  LOOP ; Fld=0{PROP:NextField,Fld} ; IF ~Fld THEN BREAK. 
-     IF Fld{PROP:Type}=CREATE:List THEN Fld{PROPLIST:Grid}=COLOR:SCROLLBAR.
-  END
   COMPILE('!**WndPrv END**', _IFDef_CBWndPreview_)
     WndPrvCls.Init()
   !**WndPrv END**
@@ -498,7 +491,19 @@ DOO.ProcedureListSelect PROCEDURE(STRING ProcName, BOOL CheckMouse2=1)
            SELECT(?LIST:ProcedureQ,POINTER(ProcedureQ))
        END
     END
-    RETURN
+    RETURN  
+!-------------------------------------------------
+DOO.ListProps4NiceLook PROCEDURE()
+FEQ LONG,AUTO
+  CODE
+  FEQ=0
+  LOOP 
+      FEQ=0{PROP:NextField,FEQ}
+      IF FEQ=0 THEN BREAK. 
+      IF FEQ{PROP:Type} <> CREATE:List THEN CYCLE.
+      FEQ{PROP:LineHeight}=1 + FEQ{PROP:LineHeight}    ! +1 more line space easier to read
+      FEQ{PROPLIST:Grid}=COLOR:ScrollBar               !Color a Column Lines a bit Lighter than default dark gray
+  END
 !-------------------------------------------------
 DOO.ImportTreeExpand    PROCEDURE(SHORT ExpandContractSign1)
     CODE
