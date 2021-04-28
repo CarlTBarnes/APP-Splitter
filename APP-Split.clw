@@ -38,7 +38,8 @@ ProcessAppClwFile  PROCEDURE()
 LoadExportExpFile  PROCEDURE() !Loads ExportQ from EXP File Text
 LoadLinkMapFile    PROCEDURE()
 LittleTextWindow   PROCEDURE(STRING Txt,<STRING InCaption>) 
-LoadTricksText     PROCEDURE()               
+LoadTricksText     PROCEDURE()
+NotepadOpen        PROCEDURE(STRING OpenFileName)               !Run Notepad to Open file                
 TextLoadFromFile   PROCEDURE(STRING FileName, *STRING OutText) 
 PathBS             PROCEDURE(STRING PathRaw),STRING
 DB                 PROCEDURE(STRING xMessage)
@@ -217,12 +218,15 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
                         '2)FP~Procedure~@s255@')                        
             END
             TAB(' Map CL&W File Code '),USE(?TabClw)
-                LIST,AT(5,19),FULL,USE(?LIST:CodeQ),VSCROLL,FONT('Consolas',10),FROM(CodeQ), |
+                BUTTON('Notepad'),AT(7,19,42,12),USE(?AppClwMapNotepadBtn),SKIP,TIP('Open MAP .CLW file in Notepad')
+                ENTRY(@s255),AT(57,20,,11),FULL,USE(AppClwNameOfFile,,?AppClwNameOfFile:2),SKIP,TRN,FONT('Consolas'),READONLY
+                LIST,AT(5,36),FULL,USE(?LIST:CodeQ),VSCROLL,FONT('Consolas',10),FROM(CodeQ), |
                         FORMAT('29R(2)|FM~Line~@n7@61L(2)|FM~Module Name~@s32@20L(2)FP~CODE - Doub' & |
                         'le click on line to open code line for copy~@s255@')
             END
-            TAB(' File View '),USE(?TabViewModule)
-                ENTRY(@s255),AT(7,20,491),USE(ModViewFileName),SKIP,TRN,FONT('Consolas'),READONLY
+            TAB(' File View '),USE(?TabViewModule) 
+                BUTTON('Notepad'),AT(7,19,42,12),USE(?ModViewNotepadBtn),SKIP,TIP('Open .CLW file in Notepad'),DISABLE
+                ENTRY(@s255),AT(57,20,491),USE(ModViewFileName),SKIP,TRN,FONT('Consolas'),READONLY
                 TEXT,AT(7,36),FULL,USE(ModVw:Block),HVSCROLL,FONT('Consolas',10),READONLY
             END
             TAB(' Proc Names '),USE(?TabProcNames)
@@ -308,7 +312,7 @@ MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or m
   TargetName  = GETINI('Cfg','Target',TargetName,ConfigINI)
   DebugRelease= GETINI('Cfg','Build',DebugRelease,ConfigINI)
   
-  ModViewFilename = 'Select File on the Modules tab to view source here' 
+  ModViewFilename = 'Select File on the Modules tab to view source here with View button or double click' 
   ProcNames4File  = 'Select File on the Modules tab to view procedure names here' 
   SYSTEM{PROP:PropVScroll}=1
   COMPILE('**END**', _C110_)
@@ -368,7 +372,8 @@ MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or m
     OF ?RunAgainBtn ; RUN(COMMAND('0'))  
     OF ?ViewModuleBtn
        GET(ModuleQ,CHOICE(?LIST:ModuleQ)) 
-       ModViewFileName=AppPathBS & ModQ:FileName  
+       ModViewFileName=AppPathBS & ModQ:FileName 
+       ENABLE(?ModViewNotepadBtn)
        DOO.Set_TabProcNames() 
        CLOSE(ModViewFile) 
        OPEN(ModViewFile,40h) 
@@ -381,9 +386,11 @@ MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or m
        DISPLAY ; SELECT(?TabViewModule) ; DISPLAY        
     
     OF ?MapProcOnlyBtn      ; DOO.MapProcedureOnly()   
-    OF ?MapOpenNotepadBtn   ; IF EXISTS(MapLnkNameOfFile) THEN RUN('Notepad "' & CLIP(MapLnkNameOfFile) &'"').
-    OF ?ExpOpenNotepadBtn   ; IF EXISTS(ExpFileName) THEN RUN('Notepad "' & CLIP(ExpFileName) &'"').
-    OF ?FLXmlOpenNotepadBtn ; IF EXISTS(FileListXmlName) THEN RUN('Notepad "' & CLIP(FileListXmlName) &'"').
+    OF ?AppClwMapNotepadBtn ; NotepadOpen(AppClwNameOfFile)
+    OF ?ModViewNotepadBtn   ; NotepadOpen(ModViewFileName)
+    OF ?MapOpenNotepadBtn   ; NotepadOpen(MapLnkNameOfFile)
+    OF ?ExpOpenNotepadBtn   ; NotepadOpen(ExpFileName)
+    OF ?FLXmlOpenNotepadBtn ; NotepadOpen(FileListXmlName)
     OF ?CopyProceduresBtn   ; DOO.CopyProceduresButton()                           
     OF ?CopyImportsBtn      ; DOO.CopyImportsButton()
     OF ?ImportsExpandBtn    ; DOO.ImportTreeExpand(1)
@@ -1139,6 +1146,20 @@ TextLoadFromFile   PROCEDURE(STRING FileName, *STRING OutText)
     CLOSE(BigDosFile) 
     RETURN 
 
+!============================================================
+NotepadOpen PROCEDURE(STRING OpenFileName)  !Run Notepad to Open file 
+    CODE
+!TODO get Editor EXE from Config INI file
+    IF EXISTS(OpenFileName) THEN
+       RUN('Notepad "' & CLIP(OpenFileName) &'"')  
+       IF ERRORCODE() THEN 
+          Message('Run Notedpad Error ' & ErrorCode() &' '& Error() & |
+                   '||File: ' & OpenFileName,'NotepadOpen')       
+       END 
+    ELSE
+       Message('File does not exist: ' & OpenFileName,'NotepadOpen')
+    END 
+    RETURN 
 !============================================================
 LoadTricksText     PROCEDURE()
     CODE
