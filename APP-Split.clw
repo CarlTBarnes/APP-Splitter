@@ -532,6 +532,8 @@ DOO.ProcessClw PROCEDURE(BOOL CheckExists=0)!,BOOL
     ELSIF CheckExists
         RETURN TRUE
     END 
+    CLEAR(ModViewFileName) ; CLEAR(ModVw:Block)
+    CLEAR(ProcNames4File) ; CLEAR(ProcNamesInModule)
     ProcessAppClwFile() 
     SELECT(?TabModules) 
     PUTINI('Cfg','File',AppClwNameOfFile,ConfigINI) 
@@ -691,7 +693,7 @@ Px     LONG
 DelimProcs    PSTRING(6)       
     CODE
     DelimProcs=CHOOSE(~ProcDelimTabs,'  ',' <9>')  
-    FREE(ModuleQ) ; FREE(CodeQ) 
+    FREE(ModuleQ) ; FREE(CodeQ) ; FREE(ProcedureQ)
     AppClwNameOfFile=LONGPATH(AppClwNameOfFile) 
     PathBS=INSTRING('\',AppClwNameOfFile,-1,SIZE(AppClwNameOfFile)) ;   
         IF ~PathBS THEN Message('PathBS=' & PathBS ) ; RETURN .
@@ -935,8 +937,7 @@ Addr2   LONG
 MX      LONG
       
     CODE
-    FREE(ImportQ)
-    FREE(Import2Q)
+    FREE(ImportQ) ; FREE(Import2Q) ; FREE(MapSizeQ)
     MapLnkNameOfFile=LONGPATH(MapLnkNameOfFile) 
     DB('MapLnkNameOfFile=' & MapLnkNameOfFile)  
     
