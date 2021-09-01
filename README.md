@@ -22,3 +22,5 @@ The **MAP Size** tab shows the parsed Linker Map. This is used to estimate Proce
 The **MAP Imports** tab shows the LIB's imported by this APP and the Procedures Imported. This was from the Linker Map Imports section.
 
 ![Imports](images/readme_mapimp1.png)
+
+Shown during the [ClarionLive Open Webinar April 28, 2021 at time 37:20](https://www.youtube.com/watch?v=OLtKbH7-AR8&t=37m20s)
