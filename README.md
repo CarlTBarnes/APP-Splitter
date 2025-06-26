@@ -25,10 +25,10 @@ The **MAP Imports** tab shows the LIB's imported by this APP and the Procedures 
 
 Shown during the [ClarionLive Open Webinar April 28, 2021 at time 37:20](https://www.youtube.com/watch?v=OLtKbH7-AR8&t=37m20s)
 ___
-### New June 2025 - Open DLLs Button on MAP Imports Tab
+### New June 2025 - Open DLLs Button on the MAP Imports Tab
 
 To help resolve "Circular References" aka "Mutual Imports" the MAP Imports tab adds an "Open DLL" button. 
- It pops up a list of Imported DLLs that have a Clarion Map.
+ It pops up a list of Imported DLLs to make it easy to open them in App Splitter and check their imports.
 
 Below you see the popup shows UTBLG imports UT00, UTMnt and UTRec. 
 
