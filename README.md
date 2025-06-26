@@ -24,3 +24,17 @@ The **MAP Imports** tab shows the LIB's imported by this APP and the Procedures 
 ![Imports](images/readme_mapimp1.png)
 
 Shown during the [ClarionLive Open Webinar April 28, 2021 at time 37:20](https://www.youtube.com/watch?v=OLtKbH7-AR8&t=37m20s)
+___
+### New June 2025 - Open DLLs Button on MAP Imports Tab
+
+To help resolve "Circular References" aka "Mutual Imports" the MAP Imports tab adds an "Open DLL" button. 
+ It pops up a list of Imported DLLs that have a Clarion Map.
+
+Below you see the popup shows UTBLG imports UT00, UTMnt and UTRec. 
+
+![Open DLL Popup](images/readme_opendll1.png)
+
+Clicking on UTMNT opens that in App Splitter then displays the Imports tab with UTMNT selected and expanded.
+ It shows that UTMNT imports 10 procedures from UTBLG. Using the two instances you can see all the Mutual Imports between UTBLG and UTMNT DLLs.
+
+![Open DLL Run](images/readme_opendll2.png)
