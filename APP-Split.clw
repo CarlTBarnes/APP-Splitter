@@ -5,10 +5,8 @@
 ! 04/19/2021 Copy Procedures. Proc MAP Size shows DLL Name if Import
 ! 04/25/2021 Exports List and "Export" column in Procedure Queue
 ! 04/26/2021 Export column in Procedures show "Import". Exports List Column tip with EXP file info
-
-!TODO Source subfolder or folder for those that choose to generate that way.
-!TODO my Locator Class
-!TODO Save Notes
+! 05/02/2021 Bugs if Re-Load in same session need to Free ProcedureQ and Clear some
+! 06/08/2025 From Import Tab add "Open DLL" button to open Callee here to see if it has Mutual Imports
 
   PROGRAM
   INCLUDE('KeyCodes.CLW')
@@ -17,7 +15,7 @@
     COMPILE('!**WndPrv END**', _IFDef_CBWndPreview_)
 WndPrvCls   CBWndPreviewClass
     !**WndPrv END**
-  
+
 CBSortClass1 CLASS,TYPE
 QRef        &QUEUE
 FEQ         LONG
@@ -42,6 +40,9 @@ LoadTricksText     PROCEDURE()
 NotepadOpen        PROCEDURE(STRING OpenFileName)               !Run Notepad to Open file                
 TextLoadFromFile   PROCEDURE(STRING FileName, *STRING OutText) 
 PathBS             PROCEDURE(STRING PathRaw),STRING
+PopupUnder         PROCEDURE(LONG CtrlFEQ, STRING PopMenu),LONG     !Open POPUP() under Button Control
+Err4Msg            PROCEDURE(Byte NoCRLF=0),STRING                  !Format current Error for Message or Log
+ExeNameOnly        PROCEDURE(),STRING                               !Return name of This EXE from Command
 DB                 PROCEDURE(STRING xMessage)
     MODULE('Win32')
 OutputDebugString   PROCEDURE(*cstring Msg),PASCAL,RAW,NAME('OutputDebugStringA'),DLL(1)
@@ -56,6 +57,7 @@ TargetName          STRING(32)      !W/o Ext
 AppClwNameOfFile    STRING(260)
 AppExpNameOfFile    STRING(260)
 DebugRelease        STRING('Debug  ')   !Or Release
+CmdLnMapImportSee   STRING(32)          !06/08/25 Command Line to see DLL on "Map Imports" tab at open. Passed by "Open DLL" button.
 
 AppClwFile   FILE,DRIVER('ASCII'),PRE(AppClw),NAME(AppClwNameOfFile) 
     RECORD
@@ -162,7 +164,7 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
         SHEET,AT(2,2),FULL,USE(?Sheet1),SCROLL,JOIN
             TAB(' APP to Process '),USE(?TabAPP)
                 PROMPT('Project Folder:'),AT(7,20),USE(?AppPathBS:Pmt)
-                ENTRY(@s255),AT(58,20,423),USE(AppPathBS),FONT('Consolas',9),TIP('xxxxx')
+                ENTRY(@s255),AT(58,20,423),USE(AppPathBS),FONT('Consolas',9),TIP('Path to CwProj')
                 PROMPT('APP Name:'),AT(7,36),USE(?AppNameOnly:Pmt)
                 ENTRY(@s32),AT(58,36,141),USE(AppNameOnly),FONT('Consolas',9),TIP('APP Name without ' & |
                         '.APP Extension')
@@ -192,7 +194,9 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
                 ENTRY(@s255),AT(58,226,423),USE(MapLnkNameOfFile),FONT('Consolas',9),TIP('In MAP fol' & |
                         'der under Release or Debug')
                 CHECK('Omit DATA Imports'),AT(137,249),USE(OmitImportedData),TIP('Data has $ in symbol')
-                BUTTON('&Load Link MAP'),AT(59,242,64,14),USE(?LoadLinkBtn)
+                BUTTON('&Load Link MAP'),AT(59,242,64,14),USE(?LoadLinkBtn)                                                  
+                BUTTON('Explore'),AT(488,19,33,12),USE(?ExploreAppPathBtn),SKIP,TIP('Open Project Pa' & |
+                        'th in Explorer')
                 BUTTON('Run<13,10>Again'),AT(449,36,33,26),USE(?RunAgainBtn),SKIP,TIP('Run another instance of App Splitter')
             END
             TAB(' &Modules '),USE(?TabModules)
@@ -209,9 +213,9 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
                         '2)FP~Procedures~@s255@')
             END
             TAB(' &Procedures '),USE(?TabProcedures)
-                BUTTON('Copy'),AT(6,19,30,12),USE(?CopyProceduresBtn),SKIP
+                BUTTON('Copy'),AT(6,19,30,12),USE(?CopyProceduresBtn),SKIP,TIP('Copy Procedures List below Tab Delimited to paste into Excel')
                 STRING('MAP Size is calculated from the MAP Addresses. Zero would indicate the Smart' & |
-                        ' Linker did not include a procedure that was not callered nor exported'),AT(43,19), |
+                        ' Linker did not include a procedure that was not callered nor exported'),AT(43,20), |
                         USE(?ProcMapSizeFYI)
                 LIST,AT(7,33),FULL,USE(?LIST:ProcedureQ),VSCROLL,FONT('Consolas',10),FROM(ProcedureQ),FORMAT('27R(2)|FM~' & |
                         'Line~@n6@70L(2)|FM~Module Name~@s64@44R(2)|FM~MAP Size~C(0)@s24@38L(2)|FM~Export~C(0)@s8@20L(' & |
@@ -249,7 +253,9 @@ Window WINDOW('APP Splitter - Find the Biggest Modules and Procedures to move to
                 BUTTON('Copy'),AT(5,19,29,12),USE(?CopyImportsBtn),SKIP,TIP('Copy Imports to Clipboard')
                 BUTTON('+'),AT(39,19,12,12),USE(?ImportsExpandBtn),SKIP,TIP('Expand All')
                 BUTTON('-'),AT(54,19,12,12),USE(?ImportsContractBtn),SKIP,TIP('Contract All')
-                ENTRY(@s255),AT(74,19,,11),FULL,USE(MapLnkNameOfFile,, ?MapLnkNameOfFile:3),SKIP,TRN, |
+                BUTTON('Open DLL'),AT(71,19,,12),USE(?ImportsOpenDLLBtn),SKIP,TIP('Open a Callee DLL from b' & |
+                        'elow in App Splitter')                
+                ENTRY(@s255),AT(125,19,,11),FULL,USE(MapLnkNameOfFile,, ?MapLnkNameOfFile:3),SKIP,TRN, |
                         FONT('Consolas'),READONLY
                 LIST,AT(5,34,250),FULL,USE(?LIST:ImportQ),VSCROLL,FONT('Consolas',10),FROM(ImportQ), |
                         FORMAT('60L(2)|FMT~DLL Name~@s32@?20L(2)F~Procedure~@s64@')
@@ -289,6 +295,7 @@ WhoSortName     PROCEDURE(SHORT QFieldNow, STRING WhoNameNow),STRING,DERIVED
             END
 ConfigINI  STRING('.\Config.INI') 
 DOO CLASS
+ImportTabOpenDLLBtn PROCEDURE()
 ImportTreeExpand    PROCEDURE(SHORT ExpandContractSign1)
 ListProps4NiceLook  PROCEDURE()
 ProcedureListSelect PROCEDURE(STRING ProcName, BOOL CheckMouse2=1)
@@ -303,15 +310,30 @@ MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or m
     END
   CODE
   LoadTricksText()
-!  AppNameOnly='Pr04'
-!  TargetName ='QPr04'
-!  AppPathBS   = GETINI('Cfg','Path','D:\DecSys_Zips_Clarion11\C11Apps\EisTrsTier2\',ConfigINI)
-
-  AppPathBS   = GETINI('Cfg','Path',,ConfigINI)
-  AppNameOnly = GETINI('Cfg','APP',AppNameOnly,ConfigINI)
-  TargetName  = GETINI('Cfg','Target',TargetName,ConfigINI)
-  DebugRelease= GETINI('Cfg','Build',DebugRelease,ConfigINI)
   
+  !--Set Initial Values of data
+  AppPathBS    = CLIP(LEFT(Command('AppPath')))
+  AppNameOnly  = LEFT(Command('AppName'))
+  TargetName   = LEFT(Command('Target'))
+  IF AppPathBS AND (AppNameOnly OR TargetName) THEN       !06/08/2025 Have a command line, probably from Imports Open DLL
+     DebugRelease      = CLIP(Command('Build'))
+     CmdLnMapImportSee = CLIP(Command('MapImportSee'))
+     DB('CommandLine='& COMMAND('')) ; DB('AppPathBS='& AppPathBS &'<13,10>TargetName='& CLIP(TargetName) &'<13,10>CmdLnMapImportSee='& CLIP(CmdLnMapImportSee) )
+  ELSE 
+      AppPathBS   = GETINI('Cfg','Path'  ,,ConfigINI)
+      AppNameOnly = GETINI('Cfg','APP'   ,,ConfigINI)
+      TargetName  = GETINI('Cfg','Target',,ConfigINI)
+      DebugRelease= GETINI('Cfg','Build' ,,ConfigINI)
+  END
+  IF AppPathBS    THEN AppPathBS  =PathBS(AppPathBS).
+  IF ~AppNameOnly THEN AppNameOnly=TargetName.
+  IF ~TargetName  THEN TargetName =AppNameOnly.
+  CASE UPPER(DebugRelease[1])
+  OF 'R' ; DebugRelease='Release'
+  OF 'D' ; DebugRelease='Debug'
+  ELSE   ; DebugRelease='Debug'     !Assume Debug as Default 
+  END
+
   ModViewFilename = 'Select File on the Modules tab to view source here with View button or double click' 
   ProcNames4File  = 'Select File on the Modules tab to view procedure names here' 
   SYSTEM{PROP:PropVScroll}=1
@@ -360,8 +382,21 @@ MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or m
                          SELECT(?TabAPP)
                          CYCLE
                      END
-                     SELECT(?TabModules) 
+                     SELECT(?TabModules)
 
+                     IF CmdLnMapImportSee THEN                  !Command Line from MAP Imports Tab to Open DLL
+                        ImpQ:DllUpr=UPPER(CmdLnMapImportSee)    !  For Imports Pick the caller and Expand Him
+                        GET(ImportQ,ImpQ:DllUpr)
+                        IF ~ERRORCODE() THEN
+                            ImpQ:Level=ABS(ImpQ:Level)
+                            PUT(ImportQ)
+                            SELECT(?LIST:ImportQ,POINTER(ImportQ))
+                        ELSE
+                            SELECT(?LIST:ImportQ)
+                            Message(CLIP(CmdLnMapImportSee) &'.DLL has no Imports from '& UPPER(TargetName), 'Alert')
+                        END
+                        CmdLnMapImportSee=''
+                     END   
     OF ?ProcessBtn   
                      IF ~DOO.ProcessCLW() THEN CYCLE.
                      
@@ -370,6 +405,7 @@ MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or m
 
     OF ?CopyModsBtn ; DOO.CopyModsButton()
     OF ?RunAgainBtn ; RUN(COMMAND('0'))  
+    OF ?ExploreAppPathBtn ; IF AppPathBS THEN RUN('Explorer.exe /n,/e,"' & CLIP(AppPathBS) &'"') ELSE MESSAGE('Path does not exist','Alert'). 
     OF ?ViewModuleBtn
        GET(ModuleQ,CHOICE(?LIST:ModuleQ)) 
        ModViewFileName=AppPathBS & ModQ:FileName 
@@ -395,6 +431,7 @@ MapProcedureOnly    PROCEDURE()  !Only keep PROCEDURE's in MapSizeQ no Data or m
     OF ?CopyImportsBtn      ; DOO.CopyImportsButton()
     OF ?ImportsExpandBtn    ; DOO.ImportTreeExpand(1)
     OF ?ImportsContractBtn  ; DOO.ImportTreeExpand(-1)
+    OF ?ImportsOpenDLLBtn   ; DOO.ImportTabOpenDLLBtn()
     
     OF   ?LoadLinkBtn       ; IF ~DOO.ProcessMAP() THEN CYCLE.
     END  
@@ -512,6 +549,60 @@ FEQ LONG,AUTO
       FEQ{PROPLIST:Grid}=COLOR:ScrollBar               !Color a Column Lines a bit Lighter than default dark gray
   END
 !-------------------------------------------------
+DOO.ImportTabOpenDLLBtn    PROCEDURE()    !Button on Imports tab to open Callee DLL in App Splitter
+PopMenu CSTRING(1000)
+PopCnt  LONG
+PopPick LONG
+PItemsQ QUEUE,PRE(PItemQ)
+PickNo      LONG    !PItemQ:PickNo
+ImpQPtr     LONG    !PItemQ:ImpQPtr
+        END
+Map4DLL STRING(260)             !Must find a .MAP file to use this, would not for LIBs
+NoMapz  CSTRING(1000)
+    CODE
+    IF ~RECORDS(ImportQ) THEN RETURN.
+    LOOP QX=1 TO RECORDS(ImportQ)
+       GET(ImportQ,QX) 
+       IF ABS(ImpQ:Level) <> 1 THEN CYCLE.
+       Map4DLL = AppPathBS & 'Map\'& CLIP(DebugRelease) &'\'& CLIP(ImpQ:DllName) &'.MAP'
+       IF ~EXISTS(Map4DLL) THEN
+           NoMapz = CHOOSE(~NoMapz,'{{',NoMapz &'|') &'~'& CLIP(ImpQ:DllName) &' <9>'& CLIP(Map4DLL)
+           CYCLE 
+       END 
+       PopMenu = PopMenu & |
+                CHOOSE(~PopCnt,'','|') & |      ! CHOOSE(~EXISTS(Map4DLL),'~','') & |     !No MAP then cannot pick
+                CLIP(ImpQ:DllName)
+       PopCnt += 1
+       PItemQ:PickNo  = PopCnt 
+       PItemQ:ImpQPtr = QX
+       ADD(PItemsQ,PItemQ:PickNo)
+    END 
+    IF ~PopCnt THEN PopMenu='~No DLLs Found'.
+    IF NoMapz  THEN PopMenu=PopMenu &'|-|No Clarion Map ...'& NoMapz &'}'.
+    PopPick=PopupUnder(?,PopMenu)
+    IF ~PopPick THEN RETURN.
+    PItemQ:PickNo = PopPick
+    GET(PItemsQ,PItemQ:PickNo)   ; if errorcode() then stop('GET(PItemsQ,PItemQ:PickNo) err '& ErrorCode()). 
+    GET(ImportQ,PItemQ:ImpQPtr)  ; if errorcode() then stop('GET(ImportQ,PItemQ:ImpQPtr) err '& ErrorCode()).
+    ImpQ:Level = ABS(ImpQ:Level) ; PUT(ImportQ)  !Expand if contracted 
+    ?LIST:ImportQ{PROP:Selected}=POINTER(ImportQ)
+    DO OpenDllRtn    
+    RETURN
+OpenDllRtn ROUTINE
+    DATA
+ExeName     PSTRING(256)    
+ExeParms    CSTRING(1024)   
+    CODE
+    ExeName  = ExeNameOnly()
+    ExeParms = 'AppPath="'& CLIP(AppPathBS)    &'"'& |
+               ' Target="' & CLIP(ImpQ:DllName) &'"'& |
+               ' Build="'  & CLIP(DebugRelease) &'"'& |
+               ' MapImportSee="' & CLIP(TargetName)   &'"'
+    DB('Open DLL Run '& ExeName ) ; DB('Exe Parms='& ExeParms )
+    RUN(ExeName &' '& CLIP(ExeParms))
+    IF ERRORCODE() THEN Message('Failed RUN '& ExeName &'|'& ExeParms &'||RunCode='& RunCode() & Err4Msg(),'Run Error').
+    RETURN      
+!-------------------------------------------------
 DOO.ImportTreeExpand    PROCEDURE(SHORT ExpandContractSign1)
     CODE
     LOOP QX=1 TO RECORDS(ImportQ)   !Find an Export and Select
@@ -521,7 +612,7 @@ DOO.ImportTreeExpand    PROCEDURE(SHORT ExpandContractSign1)
        PUT(ImportQ) 
     END 
     DISPLAY
-    RETURN
+    RETURN  
 !-------------------------------------------------
 DOO.ProcessClw PROCEDURE(BOOL CheckExists=0)!,BOOL
     CODE  
@@ -531,7 +622,8 @@ DOO.ProcessClw PROCEDURE(BOOL CheckExists=0)!,BOOL
         RETURN False
     ELSIF CheckExists
         RETURN TRUE
-    END 
+    END
+    0{PROP:Text}='App Splitter - '& CLIP(AppNameOnly) &' -- '& CLIP(AppPathBS)
     CLEAR(ModViewFileName) ; CLEAR(ModVw:Block)
     CLEAR(ProcNames4File) ; CLEAR(ProcNamesInModule)
     ProcessAppClwFile() 
@@ -647,7 +739,7 @@ MX LONG,AUTO
     RETURN 
 !=====================
 DB   PROCEDURE(STRING xMessage)
-Prfx EQUATE('ModSplit: ')   !All output gets this
+Prfx EQUATE('AppSplit: ')   !All output gets this
 sz   CSTRING(SIZE(Prfx)+SIZE(xMessage)+1),AUTO
   CODE 
   sz  = Prfx & CLIP(xMessage)
@@ -1122,7 +1214,7 @@ MapSizeQ_Sort_Rtn ROUTINE
     EXIT       
 !============================================================
 PathBS   PROCEDURE(STRING P)!,STRING
-L   LONG 
+L   LONG,AUTO 
     CODE
     P=LEFT(P)
     L=Len(Clip(P))
@@ -1161,6 +1253,37 @@ NotepadOpen PROCEDURE(STRING OpenFileName)  !Run Notepad to Open file
        Message('File does not exist: ' & OpenFileName,'NotepadOpen')
     END 
     RETURN 
+!============================================================
+Err4Msg  PROCEDURE(Byte NoCRLF=0)!,STRING 
+  CODE
+  IF ~ERRORCODE() THEN RETURN ''.   
+  IF ~NoCRLF THEN 
+     RETURN '<13,10><13,10>Error Code: ' & ERRORCODE()&' '&ERROR() & |
+             CHOOSE(~FILEERRORCODE(),'','<13,10>Driver Error: ' & FILEERRORCODE()&' '&FILEERROR() ) & | 
+             CHOOSE(~ERRORFILE(),'','<13,10>File Name: ' & ERRORFILE() )
+  END 
+  RETURN ERRORCODE()&' '&ERROR() & |      !NoCRLF<>0 is 1 line format for use by logging
+         CHOOSE(~FILEERRORCODE(),'',' [Driver ' & FILEERRORCODE()&' '&FILEERROR() &']' ) & | 
+         CHOOSE(~ERRORFILE(),'',' {{' & ERRORFILE() & '}' ) 
+!============================================================
+ExeNameOnly PROCEDURE()!,STRING     !Return name of This EXE 
+Bs  LONG,AUTO
+Nm  STRING(260),AUTO
+    CODE
+    Nm=COMMAND(0)                    !EXE Name
+    Bs=INSTRING('\',Nm,-1,SIZE(Nm))    !Usually contains full path 
+    IF Bs THEN Nm=SUB(Nm,Bs+1,260).
+    IF ~Nm THEN Nm='App-Split.EXE'.
+    RETURN CLIP(Nm)
+!============================================================
+PopupUnder PROCEDURE(LONG CtrlFEQ, STRING PopMenu)!,LONG
+X LONG,AUTO
+Y LONG,AUTO
+H LONG,AUTO
+    CODE
+    GETPOSITION(CtrlFEQ,X,Y,,H)
+    IF CtrlFEQ{PROP:InToolBar} THEN Y -= (0{PROP:ToolBar}){PROP:Height}.
+    RETURN POPUP(PopMenu,X,Y+H+1,1)
 !============================================================
 LoadTricksText     PROCEDURE()
     CODE
